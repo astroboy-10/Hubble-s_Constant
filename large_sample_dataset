@@ -1,0 +1,97 @@
+Created on Mon Nov  4 19:11:01 2024
+
+@author: Kumar
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import emcee
+from mpl_toolkits.mplot3d import Axes3D
+
+# Step 1: Generate Sample Data
+np.random.seed(42)  # For reproducibility
+num_samples = 100000  # Number of data points
+z = np.random.uniform(0, 2, num_samples)  # Random redshift values
+# Generate distances using the true Hubble constant with some noise
+true_hubble_constant = 70  # True Hubble constant (km/s/Mpc)
+distance = true_hubble_constant * z + np.random.normal(0, 5, size=z.shape)
+
+# Step 2: Define the Distance-Duality Relation Model
+def model(hubble_constant, z):
+    return hubble_constant * z  # Simple linear model for Hubble relation
+
+# Step 3: Define the Log-Posterior Function
+def log_posterior(hubble_constant, distance, z):
+    if hubble_constant <= 0:
+        return -np.inf  # Hubble constant must be positive
+    predictions = model(hubble_constant, z)
+    return -0.5 * np.sum((distance - predictions) ** 2)
+
+# Step 4: Set up the MCMC Sampler
+nwalkers = 100  # More walkers for better sampling
+ndim = 1  # We're estimating one parameter: the Hubble constant
+initial = np.random.uniform(50, 90, size=(nwalkers, ndim))  # Initial guesses
+
+# Create the sampler
+sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args=(distance, z))
+
+# Run MCMC
+nsteps = 5000
+sampler.run_mcmc(initial, nsteps)
+
+# Step 5: Analyze the Results
+samples = sampler.get_chain(discard=100, flat=True)
+hubble_estimate = np.mean(samples)
+hubble_std = np.std(samples)
+
+# Print the mean Hubble constant
+print(f"Estimated Hubble Constant: {hubble_estimate:.2f} ± {hubble_std:.2f} km/s/Mpc")
+
+# Step 6: 2D Plot of Distance vs. Redshift
+plt.figure(figsize=(12, 6))
+plt.subplot(2, 1, 1)
+plt.plot(z, distance, 'o', label='Simulated Data', color='gray', markersize=1)
+z_fit = np.linspace(0, 2, 100)
+distance_fit = model(hubble_estimate, z_fit)
+plt.plot(z_fit, distance_fit, label=f'Hubble Fit: {hubble_estimate:.2f} km/s/Mpc', color='blue')
+plt.xlabel('Redshift (z)')
+plt.ylabel('Distance (Mpc)')
+plt.title('Simulated Distance vs Redshift')
+plt.legend()
+
+# Step 7: 3D Plot of Redshift vs. Distance with Hubble Constant
+fig = plt.figure(figsize=(12, 6))
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(z, distance, np.zeros_like(z), c='blue', s=1, label='Data Points')
+ax.set_xlabel('Redshift (z)')
+ax.set_ylabel('Distance (Mpc)')
+ax.set_zlabel('Constant (Hubble)')
+ax.set_title('3D Plot of Redshift, Distance, and Hubble Constant')
+ax.view_init(30, 30)
+plt.legend()
+
+# Step 8: Plot the Posterior Distribution
+plt.subplot(2, 1, 2)
+plt.hist(samples, bins=50, density=True, color='gray', alpha=0.7)
+plt.axvline(hubble_estimate, color='red', linestyle='--', label='Mean Estimate')
+plt.title('Posterior Distribution of Hubble Constant')
+plt.xlabel('Hubble Constant (km/s/Mpc)')
+plt.ylabel('Density')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# Step 9: Plot Hubble Constant vs Redshift Distance for Different Density Parameters
+density_parameters = [0.3, 0.5, 0.7]  # Example density parameters (Ω_m)
+plt.figure(figsize=(12, 6))
+for omega_m in density_parameters:
+    hubble_constant_adjusted = hubble_estimate * (1 + omega_m * z)  # Adjusted for density
+    plt.plot(z, hubble_constant_adjusted, label=f'Density Parameter: {omega_m}')
+
+plt.xlabel('Redshift (z)')
+plt.ylabel('Adjusted Hubble Constant (km/s/Mpc)')
+plt.title('Hubble Constant vs Redshift for Different Density Parameters')
+plt.legend()
+plt.grid()
+plt.show()
